@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"net"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -29,25 +31,30 @@ func main() {
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 
-	// Read the incoming HTTP request (optional, for debugging)
-	buffer := make([]byte, 1024)
-	_, err := conn.Read(buffer)
+	reader := bufio.NewReader(conn)
+	requestLine, err := reader.ReadString('\n')
 	if err != nil {
 		fmt.Println("Error reading request:", err)
 		return
 	}
 
-	// Construct a basic HTTP response with status code 200 OK
-	response := "HTTP/1.1 200 OK\r\n" +
-		"Content-Length: 13\r\n" +
-		"Content-Type: text/plain\r\n" +
-		"\r\n" +
-		"Hello, World!"
-
-	// Send the response to the client
-	_, err = conn.Write([]byte(response))
-	if err != nil {
-		fmt.Println("Error writing response:", err)
+	parts := strings.Fields(requestLine)
+	if len(parts) < 2 {
+		sendResponse(conn, "400 Bad Request", "Invalid request")
 		return
 	}
+
+	method, path := parts[0], parts[1]
+
+	if method == "GET" && path == "/" {
+		sendResponse(conn, "200 OK", "Hello World!\n")
+	} else {
+		sendResponse(conn, "404 Not Found", "Page Not Found\n")
+	}
+
+}
+
+func sendResponse(conn net.Conn, status, body string) {
+	response := fmt.Sprintf("HTTP/1.1 %s\r\nContent-Length: %d\r\nContent-Type: text/plain\r\n\r\n%s", status, len(body), body)
+	conn.Write([]byte(response))
 }
