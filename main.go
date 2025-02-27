@@ -45,9 +45,27 @@ func handleConnection(conn net.Conn) {
 	}
 
 	method, path := parts[0], parts[1]
+	var userAgent string
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil || line == "\r\n" {
+			break
+		}
+
+		// Check if it's the User-Agent header
+		if strings.HasPrefix(strings.ToLower(line), "user-agent:") {
+			userAgent = strings.TrimSpace(strings.SplitN(line, ":", 2)[1])
+		}
+	}
+
+	body := `Hello World!!`
 
 	if method == "GET" && path == "/" {
-		sendResponse(conn, "200 OK", "Hello World!\n")
+		sendResponse(conn, "200 OK", body)
+	} else if method == "GET" && path == "echo/abc" {
+		sendResponse(conn, "200 OK", body)
+	} else if method == "GET" && path == "/user-agent" {
+		sendResponse(conn, "200 OK", "User-Agent: "+userAgent)
 	} else {
 		sendResponse(conn, "404 Not Found", "Page Not Found\n")
 	}
@@ -57,4 +75,10 @@ func handleConnection(conn net.Conn) {
 func sendResponse(conn net.Conn, status, body string) {
 	response := fmt.Sprintf("HTTP/1.1 %s\r\nContent-Length: %d\r\nContent-Type: text/plain\r\n\r\n%s", status, len(body), body)
 	conn.Write([]byte(response))
+
+	// Write the response to the connection
+	_, err := conn.Write([]byte(response))
+	if err != nil {
+		fmt.Println("Error writing response:", err)
+	}
 }
