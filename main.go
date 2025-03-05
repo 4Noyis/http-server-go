@@ -5,10 +5,14 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
+const rootDir = "/tmp"
+
 func main() {
+
 	listenPort, err := net.Listen("tcp", "0.0.0.0:4221")
 	if err != nil {
 		fmt.Println("Failed to bind to port 4221")
@@ -66,11 +70,48 @@ func handleConnection(conn net.Conn) {
 		sendResponse(conn, "200 OK", body)
 	} else if method == "GET" && path == "/user-agent" {
 		sendResponse(conn, "200 OK", "User-Agent: "+userAgent)
+	} else if method == "GET" && strings.HasPrefix(path, "/files/") {
+		filename := strings.TrimPrefix(path, "/files/")
+		filePath := filepath.Join(rootDir, filename)
+
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			sendResponse(conn, "404 Not Found", "File not found\n")
+			return
+		}
+
+		fileContent, err := os.ReadFile(filePath)
+		if err != nil {
+			sendResponse(conn, "500 Internal Server Error", "Error reading file\n")
+			return
+		}
+		sendResponse(conn, "200 OK", string(fileContent))
 	} else {
-		sendResponse(conn, "404 Not Found", "Page Not Found\n")
+		sendResponse(conn, "404 Not Found", "Page not found\n")
 	}
 
 }
+
+// func initializeDirectory() {
+// 	dirFlag := flag.String("directory", "", "Directory to serve files from (optional)")
+// 	flag.Parse()
+
+// 	if *dirFlag == "" {
+// 		// If no flag is provided, use the current working directory
+// 		cwd, err := os.Getwd()
+// 		if err != nil {
+// 			fmt.Println("Error: Unable to get current working directory")
+// 			os.Exit(1)
+// 		}
+// 		rootDir = cwd
+// 	} else {
+// 		// If flag is provided, validate the directory
+// 		if _, err := os.Stat(*dirFlag); os.IsNotExist(err) {
+// 			fmt.Println("Error: Directory does not exist")
+// 			os.Exit(1)
+// 		}
+// 		rootDir = *dirFlag
+// 	}
+// }
 
 func sendResponse(conn net.Conn, status, body string) {
 	response := fmt.Sprintf("HTTP/1.1 %s\r\nContent-Length: %d\r\nContent-Type: text/plain\r\n\r\n%s", status, len(body), body)
